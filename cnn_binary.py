@@ -16,36 +16,43 @@ from six.moves import range
 import tensorflow as tf
 from six.moves.urllib.request import urlretrieve
 from sklearn.manifold import TSNE
+
 print('hello')
 import csv
 import pandas as pd
+
+
 def createdata():
     pd.set_option('display.max_colwidth', -1)
-    col = ['comments', 'label_object','label_binary']
+    col = ['comments', 'label_object', 'label_binary']
     df_pos = pd.read_csv("posiive.csv", encoding='utf8', header=None, names=col)
     df_pos.drop_duplicates(subset="comments",
                            keep=False, inplace=True)
     df_pos.label_binary = 1
     # print('pos')
     # print(df_pos)
-    col = ['comments', 'label_object','label_binary']
+    col = ['comments', 'label_object', 'label_binary']
     df_neg = pd.read_csv("negative.csv", encoding='utf8', header=None, names=col)
     df_neg.label_binary = 0
     df_neg.drop_duplicates(subset="comments",
-                         keep=False, inplace=True)
+                           keep=False, inplace=True)
 
     frames = [df_pos, df_neg]
     result = pd.concat(frames)
     print(len(result))
     # print(result)
-    return result,df_pos,df_neg
-result,df_pos,df_neg = createdata()
+    return result, df_pos, df_neg
+
+
+result, df_pos, df_neg = createdata()
 result.dropna(inplace=True)
-#print(result.label_object)
-tongodai=len(result.label_object)
-x_comment=result.comments.tolist()
+# print(result.label_object)
+tongodai = len(result.label_object)
+x_comment = result.comments.tolist()
 y_labels_object = result.label_object.tolist()
-y_label_binary=result.label_binary.tolist()
+y_label_binary = result.label_binary.tolist()
+
+
 def readdata():
     sentences = result.comments.tolist()  # transform a sentences to a list
     words = " ".join(sentences).split()  # transform list sentenses to list words
@@ -72,74 +79,78 @@ def readdata():
     count[0][1] = unk_count
     data_recs = []
     return dic, reversed_dictionary, voc_size, data
-dic,reversed_dictionary, voc_size, data = readdata()
+
+
+dic, reversed_dictionary, voc_size, data = readdata()
+
+
+def savedic():
+    w = csv.writer(open("dic.csv", "w"))
+    for key, val in dic.items():
+        w.writerow([key, val])
+
+
+savedic()
 max_length = max([len(s) for s in data])
-embedding_size = 300
+embedding_size = 100
 x_data = np.asarray(data)
 from keras.utils.np_utils import to_categorical
-y_label_binary=to_categorical(y_label_binary)
+y_label_binary = to_categorical(y_label_binary)
 from sklearn.model_selection import train_test_split
 X_train, X_test, y_train, y_test = train_test_split(x_data, y_label_binary, test_size=0.3, random_state=42)
 X_valid, X_test, y_valid, y_test = train_test_split(X_test, y_test, test_size=0.4, random_state=42)
 X_valid = keras.preprocessing.sequence.pad_sequences(X_valid,
-                                                    padding='post', maxlen=max_length)
+                                                     padding='post', maxlen=max_length)
 X_train = keras.preprocessing.sequence.pad_sequences(X_train,
                                                      padding='post', maxlen=max_length)
 X_test = keras.preprocessing.sequence.pad_sequences(X_test,
                                                     padding='post', maxlen=max_length)
-my_optimizer = keras.optimizers.Adam(lr=0.001)
-"""
-from keras.layers import Input,BatchNormalization, Dense, concatenate, Activation,Embedding,Conv1D,GlobalMaxPooling1D,Dropout
-from keras.models import Model
-tweet_input = Input(shape=(max_length,))
-tweet_encoder = Embedding(voc_size, embedding_size, input_length=max_length)(tweet_input)
-bigram_branch = Conv1D(filters=16, kernel_size=2, padding='valid', activation='relu', strides=1)(tweet_encoder)
-batch_nor_bi=BatchNormalization()(bigram_branch)
-bigram_branch = GlobalMaxPooling1D()(bigram_branch)
-trigram_branch = Conv1D(filters=16, kernel_size=3, padding='valid', activation='relu', strides=1)(tweet_encoder)
-batch_nor_tri=BatchNormalization()(bigram_branch)
-trigram_branch = GlobalMaxPooling1D()(trigram_branch)
-fourgram_branch = Conv1D(filters=16, kernel_size=4, padding='valid', activation='relu', strides=1)(tweet_encoder)
-batch_nor_four=BatchNormalization()(fourgram_branch)
-fourgram_branch = GlobalMaxPooling1D()(fourgram_branch)
-merged = concatenate([bigram_branch, trigram_branch, fourgram_branch], axis=1)
-merged = Dense(64, activation='relu',kernel_regularizer=keras.regularizers.l2(0.01),
-                activity_regularizer=keras.regularizers.l2(0.01))(merged)
-#merged=BatchNormalization()(merged)
-merged = Dense(32, activation='relu',kernel_regularizer=keras.regularizers.l2(0.01),
-                activity_regularizer=keras.regularizers.l2(0.01))(merged)
-#merged=BatchNormalization()(merged)
-merged = Dense(2)(merged)
-output = Activation('sigmoid')(merged)
-model = Model(inputs=[tweet_input], outputs=[output])
-model.compile(loss='binary_crossentropy',
-                  optimizer='adam',
-                  metrics=['accuracy'])
-print(model.summary())
-model.compile(optimizer=my_optimizer,
-              loss='binary_crossentropy',
-              metrics=['accuracy'])
-from keras.callbacks import EarlyStopping,ModelCheckpoint
-earlyStopping = EarlyStopping(monitor='val_loss', verbose=1, mode='min',patience=2)
-mcp_save = ModelCheckpoint('model_cnn.h5', save_best_only=True, monitor='val_acc', mode='max')
-history = model.fit(X_train,
-                    y_train,
-                    epochs=100,
-                    batch_size=64,
-                    validation_data=(X_valid,y_valid),
-                    verbose=2,
-                  callbacks=[earlyStopping, mcp_save])
-results = model.evaluate(X_test, y_test)
-print('đây là kết quả ',results)
-import h5py
-#print(w)
-from keras.models import load_model
-from keras.utils import CustomObjectScope
-from keras.initializers import glorot_uniform
-with CustomObjectScope({'GlorotUniform': glorot_uniform()}):
-        my_model = load_model('model_cnn.h5')
-y_pred = my_model.predict(X_test)
-y_pred = np.argmax(y_pred, axis=1)
+
+from keras.layers import LeakyReLU,ReLU,ELU
+def model():
+    my_optimizer = keras.optimizers.Adam(lr=0.0001)
+    from keras.layers import Input,BatchNormalization, Dense, concatenate, Activation,Embedding,Conv1D,GlobalMaxPooling1D,Dropout
+    from keras.models import Model
+    tweet_input = Input(shape=(max_length,))
+    tweet_encoder = Embedding(voc_size, embedding_size, input_length=max_length)(tweet_input)
+    bigram_branch = Conv1D(filters=16, kernel_size=2, padding='valid', strides=1)(tweet_encoder)
+    #bigram_branch=BatchNormalization()(bigram_branch)
+    bigram_branch=ELU()(bigram_branch)
+    bigram_branch = GlobalMaxPooling1D()(bigram_branch)
+    trigram_branch = Conv1D(filters=16, kernel_size=3, padding='valid', strides=1)(tweet_encoder)
+    #trigram_branch=BatchNormalization()(trigram_branch)
+    trigram_branch=ELU()(trigram_branch)
+    trigram_branch = GlobalMaxPooling1D()(trigram_branch)
+    fourgram_branch = Conv1D(filters=16, kernel_size=4, padding='valid', strides=1)(tweet_encoder)
+    #fourgram_branch=BatchNormalization()(fourgram_branch)
+    fourgram_branch=ELU()(fourgram_branch)
+    fourgram_branch = GlobalMaxPooling1D()(fourgram_branch)
+    merged = concatenate([bigram_branch, trigram_branch, fourgram_branch], axis=1)
+    merged=ELU()(merged)
+    merged = Dense(32,kernel_regularizer=keras.regularizers.l2(0.01),
+                    activity_regularizer=keras.regularizers.l2(0.01))(merged)
+    merged=ELU()(merged)
+    merged = Dense(2)(merged)
+    output = Activation('sigmoid')(merged)
+    model = Model(inputs=[tweet_input], outputs=[output])
+    model.compile(loss='binary_crossentropy',
+                      optimizer=my_optimizer,
+                      metrics=['accuracy'])
+    print(model.summary())
+    from keras.callbacks import EarlyStopping,ModelCheckpoint
+    earlyStopping = EarlyStopping(monitor='val_loss', verbose=1, mode='min',patience=2)
+    mcp_save = ModelCheckpoint('model_cnn.h5', save_best_only=True, monitor='val_acc', mode='max')
+    history = model.fit(X_train,
+                        y_train,
+                        epochs=200,
+                        batch_size=64,
+                        validation_data=(X_valid,y_valid),
+                        verbose=2,
+                      callbacks=[earlyStopping, mcp_save])
+    results = model.evaluate(X_test, y_test)
+    print('đây là kết quả ',results)
+    return history, model
+history, trained_model = model()
 def visualize(history):
     history_dict = history.history
     history_dict.keys()
@@ -149,6 +160,7 @@ def visualize(history):
     loss = history_dict['loss']
     val_loss = history_dict['val_loss']
     epochs = range(1, len(acc) + 1)
+    learned=(1-loss[-1]/loss[0])*100
     import csv
     with open('val_loss_1.csv', 'w') as csvFile:
         writer = csv.writer(csvFile)
@@ -171,60 +183,24 @@ def visualize(history):
     plt.ylabel('Loss')
     plt.legend()
     plt.show()
+
 visualize(history=history)
-"""
-
-from keras.models import load_model
-from keras.utils import CustomObjectScope
-from keras.initializers import glorot_uniform
-with CustomObjectScope({'GlorotUniform': glorot_uniform()}):
-        my_model = load_model('model_cnn.h5')
-y_pred = my_model.predict(X_test)
-y_pred = np.argmax(y_pred, axis=1)
-def predict():
-    def newinput(sentences):
-      # transform a sentences to a list
-        # Make indexed word data
-        data = list()  # list transform words to integer
-        for i in sentences:
-            t = i.split()
-            data1 = []
-            for word in t:  # count rank for every word in words
-                index = dic.get(word, 0)
-                data1.append(index)
-            data.append(data1)
-        return data
-    with open('daura.csv', 'r', encoding='utf8') as file1:
-        twt=[]
-        for row in file1:
-            twt.append(row)
-    print(twt)
-    twt_updated=newinput(twt)
-    twt_updated=np.asarray(twt_updated)
-    #padding the tweet to have exactly the same shape as `embedding_2` input
-    twt_updated = keras.preprocessing.sequence.pad_sequences(twt_updated,padding='post', maxlen=max_length)
-    sentiment = my_model.predict(twt_updated)
-    sentiment=np.argmax(sentiment, axis=1)
-    #print('sentiment',sentiment)
-    #print('y_test',y_test)
-    print(sentiment)
-predict()
-
 from sklearn.metrics import confusion_matrix
-y_test=y_test.argmax(axis=1)
+
+y_pred = trained_model.predict(X_test)
+y_pred = np.argmax(y_pred, axis=1)
+y_test = y_test.argmax(axis=1)
 cnf_matrix = confusion_matrix(y_test, y_pred)
-normalized_confusion_matrix = cnf_matrix/cnf_matrix.sum(axis = 1, keepdims = True)
+normalized_confusion_matrix = cnf_matrix / cnf_matrix.sum(axis=1, keepdims=True)
 import itertools
+
+
 def plot_confusion_matrix(cm, classes,
                           normalize=False,
                           title='Confusion matrix',
                           cmap=plt.cm.Blues):
-    """
-    This function prints and plots the confusion matrix.
-    Normalization can be applied by setting `normalize=True`.
-    """
     if normalize:
-        cm = cm.astype('float') / cm.sum(axis=1, keepdims = True)
+        cm = cm.astype('float') / cm.sum(axis=1, keepdims=True)
     plt.imshow(cm, interpolation='nearest', cmap=cmap)
     plt.title(title)
     plt.colorbar()
@@ -243,6 +219,7 @@ def plot_confusion_matrix(cm, classes,
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
 
+
 # Plot non-normalized confusion matrix
 class_names = [0, 1]
 
@@ -250,8 +227,10 @@ class_names = [0, 1]
 plt.figure()
 plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
                       title='Normalized confusion matrix')
-
 plt.show()
 from sklearn import metrics
-score=metrics.f1_score(y_test, y_pred)
+from sklearn.metrics import classification_report
+report = classification_report(y_test, y_pred)
+print(report)
+score = metrics.f1_score(y_test, y_pred)
 print(score)

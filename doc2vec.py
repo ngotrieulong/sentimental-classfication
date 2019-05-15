@@ -73,8 +73,13 @@ def readdata():
     data_recs = []
     return dic, reversed_dictionary, voc_size, data
 dic,reversed_dictionary, voc_size, data = readdata()
+def savedic():
+    w = csv.writer(open("dic.csv", "w"))
+    for key, val in dic.items():
+        w.writerow([key, val])
+savedic()
 max_length = max([len(s) for s in data])
-embedding_size = 300
+embedding_size = 100
 x_data = np.asarray(data)
 from keras.utils.np_utils import to_categorical
 y_label_binary=to_categorical(y_label_binary)
@@ -87,39 +92,36 @@ X_train = keras.preprocessing.sequence.pad_sequences(X_train,
                                                      padding='post', maxlen=max_length)
 X_test = keras.preprocessing.sequence.pad_sequences(X_test,
                                                     padding='post', maxlen=max_length)
-from sklearn.g
-
+from keras.layers import LeakyReLU,ReLU,PReLU
 def model():
     my_optimizer = keras.optimizers.Adam(lr=0.0001)
-    embedding_layer = keras.layers.Embedding(voc_size, embedding_size)
+    embedding_layer = keras.layers.Embedding(voc_size, embedding_size,input_length=max_length)
     model = keras.Sequential()
     model.add(embedding_layer)
     model.add(keras.layers.GlobalMaxPool1D())
-    model.add(keras.layers.Dense(4, kernel_initializer='normal', kernel_regularizer=keras.regularizers.l2(0.05),
-                                 activity_regularizer=keras.regularizers.l2(0.05), activation=tf.nn.relu))
+    model.add(keras.layers.Dense(8, kernel_initializer='normal', kernel_regularizer=keras.regularizers.l2(0.03),
+                                 activity_regularizer=keras.regularizers.l2(0.04)))
     model.add(keras.layers.BatchNormalization())
-    model.add(keras.layers.Dense(2, activation='softmax'))
+    model.add(ReLU())
+    model.add(keras.layers.Dense(2, activation='sigmoid'))
     model.compile(loss='binary_crossentropy',
-                  optimizer='adam',
+                  optimizer=my_optimizer,
                   metrics=['accuracy'])
     print(model.summary())
-    model.compile(optimizer=my_optimizer,
-                  loss='binary_crossentropy',
-                  metrics=['accuracy'])
     from keras.callbacks import EarlyStopping, ModelCheckpoint
     earlyStopping = EarlyStopping(monitor='val_loss', verbose=1, mode='min', patience=2)
     mcp_save = ModelCheckpoint('model_file_doc2vec.h5', save_best_only=True, monitor='val_acc', mode='max')
     history = model.fit(X_train,
                         y_train,
                         epochs=100,
-                        batch_size=64,
+                        batch_size=32,
                         validation_data=(X_valid, y_valid),
                         verbose=2,
                         callbacks=[earlyStopping, mcp_save])
     results = model.evaluate(X_test, y_test)
     print('this is result ',results)
-    return history
-history=model()
+    return history,model
+history,trained_model=model()
 def visualize(history):
     history_dict = history.history
     history_dict.keys()
@@ -152,43 +154,9 @@ def visualize(history):
     plt.legend()
     plt.show()
 visualize(history=history)
-from keras.models import load_model
-from keras.utils import CustomObjectScope
-from keras.initializers import glorot_uniform
-with CustomObjectScope({'GlorotUniform': glorot_uniform()}):
-        my_model = load_model('model_file_doc2vec.h5')
-y_pred = my_model.predict(X_test)
-y_pred = np.argmax(y_pred, axis=1)
-def predict():
-    def newinput(sentences):
-      # transform a sentences to a list
-        # Make indexed word data
-        data = list()  # list transform words to integer
-        for i in sentences:
-            t = i.split()
-            data1 = []
-            for word in t:  # count rank for every word in words
-                index = dic.get(word, 0)
-                data1.append(index)
-            data.append(data1)
-        return data
-    with open('daura.csv', 'r', encoding='utf8') as file1:
-        twt=[]
-        for row in file1:
-            twt.append(row)
-    print(twt)
-    twt_updated=newinput(twt)
-    twt_updated=np.asarray(twt_updated)
-    #padding the tweet to have exactly the same shape as `embedding_2` input
-    twt_updated = keras.preprocessing.sequence.pad_sequences(twt_updated,padding='post', maxlen=max_length)
-    sentiment = my_model.predict(twt_updated)
-    sentiment=np.argmax(sentiment, axis=1)
-    #print('sentiment',sentiment)
-    #print('y_test',y_test)
-    print(sentiment)
-predict()
-
 from sklearn.metrics import confusion_matrix
+y_pred=trained_model.predict(X_test)
+y_pred = np.argmax(y_pred, axis=1)
 y_test=y_test.argmax(axis=1)
 cnf_matrix = confusion_matrix(y_test, y_pred)
 normalized_confusion_matrix = cnf_matrix/cnf_matrix.sum(axis = 1, keepdims = True)
@@ -197,10 +165,6 @@ def plot_confusion_matrix(cm, classes,
                           normalize=False,
                           title='Confusion matrix',
                           cmap=plt.cm.Blues):
-    """
-    This function prints and plots the confusion matrix.
-    Normalization can be applied by setting `normalize=True`.
-    """
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1, keepdims = True)
     plt.imshow(cm, interpolation='nearest', cmap=cmap)
@@ -216,20 +180,19 @@ def plot_confusion_matrix(cm, classes,
         plt.text(j, i, format(cm[i, j], fmt),
                  horizontalalignment="center",
                  color="white" if cm[i, j] > thresh else "black")
-
     plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
-
 # Plot non-normalized confusion matrix
 class_names = [0, 1]
-
 # Plot normalized confusion matrix
 plt.figure()
 plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
                       title='Normalized confusion matrix')
-
 plt.show()
 from sklearn import metrics
 score=metrics.f1_score(y_test, y_pred)
 print(score)
+from sklearn.metrics import classification_report
+report = classification_report(y_test, y_pred)
+print(report)
